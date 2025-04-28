@@ -16,16 +16,26 @@ mutex_lock = Lock()
 min_player_amount = 2 #set to 3
 
 
+def send_obj(player, obj):
+    player.conn.send_obj(obj)
+    print(f"[SERVER] Updated {player.name}")
+
 #send Chat object to everyone:
 def update_chat(players, chat):
     chats = []
     for item in chat:
         chats.append(item.chat)
 
+    threads = []
     for player in players:
-        player.conn.send_obj(chats)
-        print(f"[SERVER] Updated {player.name}")
-
+        t = threading.Thread(target=send_obj, args=(player, chats))
+        t.start()
+        threads.append(t)
+    
+    for t in threads:
+        t.join()
+    
+    print("[SERVER] finished update")
 
 #game ended: open chat:
 def showcase_game(conn, addr, game): 
@@ -69,6 +79,8 @@ def update_start(room, suggetsions, sentences, game):
     
     for t in threads:
         t.join()
+    
+    print(f"[SERVER] all threads for room {room.id} ended")
 
 
 def end_game(room):

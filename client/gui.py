@@ -24,8 +24,8 @@ class GUI:
     def start(self):
         height, width = (900, 1200)
         self.center_window(height, width)
-        # self.setup_mainMenu()
-        self.show_chat(chats)
+        self.setup_mainMenu()
+        # self.show_chat(chats)
         self.__root.mainloop()
 
 
@@ -487,6 +487,8 @@ class GUI:
         chats = pickle.loads(self.answer)
         with open('data.pkl', 'wb') as f:
             pickle.dump(chats, f)
+        
+        self.show_chat(chats)
 
     
     def show_chat(self, chats):
