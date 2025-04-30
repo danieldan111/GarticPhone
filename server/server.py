@@ -113,6 +113,10 @@ def game_started(conn, addr, room):
         
         allSubmit = False
         while not allSubmit:
+            if game.close: #to change
+                print("[SERVER] unexpected error")
+                end_game(room)
+                return
             time.sleep(0.1)
             allSubmit = len(sentences) == len(room.players)
         
@@ -163,7 +167,12 @@ def game_client(player, sentences, game):
     rounds = game.rounds
     for i in range(rounds // 2):
         #first sentence
-        msg = conn.recv()
+        try:
+            msg = conn.recv()
+        except Exception as e: #player disconncted
+            #close room for all
+            game.close = True
+            return
         msgCode = msg[:4]
         if msgCode == "SENT":
             sen = msg[5::]
@@ -171,7 +180,13 @@ def game_client(player, sentences, game):
         else:
             return
         #submit image
-        image = player.conn.recvall()
+        try:
+            image = player.conn.recvall()
+        except Exception as e: #player disconncted
+            #close room for all
+            game.close = True
+            return
+             
         sentences[player] = image 
 
     #game ended   
@@ -238,7 +253,7 @@ def exit_room(conn, addr, parms):
     print(username)
     room = rooms[roomid]
     #verify player
-    player = room.get_player(roomid)
+    player = room.get_player(username)
     if player.addr != addr:
         return ("EROR", "EROR") 
     with mutex_lock:
@@ -291,8 +306,22 @@ def handle_client(sock, addr):
     print(f"[SERVER] new connection from {addr}")
     conn = protocol.TCP(sock, HEADER)
     gameStart = False #only in the host thread
+    username, roomid = None, None
     while not gameStart:
-        request = conn.recv()
+        try:
+            request = conn.recv()
+        except Exception as e:
+            print(f"[SERVER] {addr} disconnected")
+            print(f"[SERVER] checking for {username, roomid}")
+            if not username or not roomid:
+                return
+            if username == roomid: #host -> close room
+                print(f"[SERVER] host disconncted closed room {roomid}")
+                close_room(conn, addr, (None, roomid))
+            else:
+                print(f"[SERVER] {username} disconncted from {roomid}")
+                exit_room(conn, addr, (None, roomid, username))
+            return
         request_code = request[:4]
         request_parms = request[4::].split("+")
         print(request)
@@ -300,8 +329,16 @@ def handle_client(sock, addr):
             if request_code == "GSRT":
                 break
                 #end of thread, reopend thread in game_started
-            msg = request_codes[request_code](conn, addr, request_parms)
+            msg = request_codes[request_code](conn, addr, request_parms)                
             if msg[0] == "CNFM":
+                if request_code == "CRTR":
+                    username = request_parms[1]
+                    roomid = request_parms[1]
+                elif request_code == "JOIN":
+                    username = request_parms[2]
+                    roomid = request_parms[1]
+                elif request_code in ("EXIT", "CLSE"):
+                    username, roomid = None, None
                 conn.send(msg[1])
             elif msg[0] == "STRT":
                 gameStart = True

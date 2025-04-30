@@ -47,6 +47,7 @@ class Game:
         self.__rounds = len(players) * 2
         self.__currentRound = 0
         self.going = True
+        self.close = False
 
 
     def random_rotate(self):

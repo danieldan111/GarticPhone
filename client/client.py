@@ -12,8 +12,11 @@ sock.connect(server_addr)
 
 conn = protocol.TCP(sock, 3)
 
+global keepGoing
+keepGoing = True
+
 def checkQ():
-    while True:
+    while keepGoing:
         time.sleep(0.1) #adjust later
         if len(screen.requests_queue) > 0:
             request = screen.requests_queue.pop(0)
@@ -48,5 +51,5 @@ screen = gui.GUI()
 t = threading.Thread(target=checkQ)
 t.start()
 screen.start()
-
+keepGoing = False
 t.join()

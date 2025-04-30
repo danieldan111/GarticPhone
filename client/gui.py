@@ -21,9 +21,15 @@ class GUI:
         self.roomId = None
         self.username = None
 
+
     def start(self):
+        def on_close():
+            self.clear_window()
+            self.__root.destroy()
+            return
         height, width = (900, 1200)
         self.center_window(height, width)
+        self.__root.protocol("WM_DELETE_WINDOW", on_close)
         self.setup_mainMenu()
         # self.show_chat(chats)
         self.__root.mainloop()
