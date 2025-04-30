@@ -16,7 +16,7 @@ global keepGoing
 keepGoing = True
 
 def checkQ():
-    while keepGoing:
+    while keepGoing and screen.active:
         time.sleep(0.1) #adjust later
         if len(screen.requests_queue) > 0:
             request = screen.requests_queue.pop(0)
@@ -46,10 +46,13 @@ def checkQ():
                 conn.timeout(None)
         
 
-
 screen = gui.GUI() 
 t = threading.Thread(target=checkQ)
 t.start()
 screen.start()
-keepGoing = False
-t.join()
+while keepGoing:
+    screen = gui.GUI() 
+    screen.start()
+    print("closed")
+    t.join()
+    t.start()

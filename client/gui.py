@@ -20,20 +20,25 @@ class GUI:
         self.answer = None
         self.roomId = None
         self.username = None
+        self.active = True
 
+    def on_close(self):
+        print("wiondow closed")
+        self.clear_window()
+        self.__root.destroy()
+        self.destroy()
+        self.active = False
+        
 
     def start(self):
-        def on_close():
-            self.clear_window()
-            self.__root.destroy()
-            return
         height, width = (900, 1200)
         self.center_window(height, width)
-        self.__root.protocol("WM_DELETE_WINDOW", on_close)
+        self.__root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.setup_mainMenu()
         # self.show_chat(chats)
-        self.__root.mainloop()
 
+        self.__root.mainloop()
+        return
 
     def center_window(self, height, width):
         screen_width =  self.__root.winfo_screenwidth()
@@ -125,7 +130,6 @@ class GUI:
         
         return False
         
-
     #create a game lobby
     def createGame(self):
         self.requests_queue.clear()
@@ -323,6 +327,11 @@ class GUI:
         
         img = self.answer
 
+        if img == "ERR":
+            print("somebody left")
+            self.destroy()
+            return
+
         self.__root.title("Gartic Phone")
         self.__root.configure(background=self.__bg_color)
         title_label = tk.Label(self.__root, text="Gartic Phone", font=("Arial", 40), bg=self.__bg_color, fg="white", pady=20)
@@ -390,6 +399,11 @@ class GUI:
 
         # print(self.answer)
         sentence = self.answer
+
+        if sentence == "ERR":
+            print("somebody left")
+            self.destroy()
+            return
 
         self.clear_window()
 
@@ -491,8 +505,9 @@ class GUI:
             self.__root.update()
         
         chats = pickle.loads(self.answer)
-        with open('data.pkl', 'wb') as f:
-            pickle.dump(chats, f)
+
+        # with open('data.pkl', 'wb') as f:
+        #     pickle.dump(chats, f)
         
         self.show_chat(chats)
 
@@ -515,7 +530,11 @@ class GUI:
             self.btns.append(btn)
             chat = Chat(self.__root, chats[i][0], chats[i][1])
             self.chats.append(chat)
-        
+    
+
+    def destroy(self):
+        del self
+        return
 
 
 

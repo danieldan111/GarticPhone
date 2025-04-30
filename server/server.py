@@ -83,9 +83,12 @@ def update_start(room, suggetsions, sentences, game):
     print(f"[SERVER] all threads for room {room.id} ended")
 
 
-def end_game(room):
+def end_game(room, text="END"):
     for player in room.players:
-        player.conn.send("END")
+        try:
+            player.conn.send(text)
+        except Exception as e:
+            continue
         print(f"[SERVER] Updated {player.name}")
 
 
@@ -115,7 +118,7 @@ def game_started(conn, addr, room):
         while not allSubmit:
             if game.close: #to change
                 print("[SERVER] unexpected error")
-                end_game(room)
+                end_game(room, "ERR")
                 return
             time.sleep(0.1)
             allSubmit = len(sentences) == len(room.players)
@@ -133,6 +136,10 @@ def game_started(conn, addr, room):
 
         allSubmit = False
         while not allSubmit:
+            if game.close: #to change
+                print("[SERVER] unexpected error")
+                end_game(room, "ERR")
+                return
             time.sleep(0.1)
             allSubmit = len(sentences) == len(room.players)
             print(len(sentences))
@@ -166,6 +173,8 @@ def game_client(player, sentences, game):
     conn.send("CNFM")
     rounds = game.rounds
     for i in range(rounds // 2):
+        if game.close:
+            return
         #first sentence
         try:
             msg = conn.recv()
@@ -180,6 +189,8 @@ def game_client(player, sentences, game):
         else:
             return
         #submit image
+        if game.close:
+            return
         try:
             image = player.conn.recvall()
         except Exception as e: #player disconncted
