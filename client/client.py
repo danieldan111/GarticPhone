@@ -22,6 +22,10 @@ def checkQ():
             request = screen.requests_queue.pop(0)
             # print(request) #skip
             # print(request)
+            if request == "DISC":
+                conn.send(request)
+                print("ENDED")
+                return
             if request[:3] == "IMG":
                 conn.sendall(base64.b64decode(request[3::]))
                 screen.answer = conn.recvall()
@@ -44,15 +48,17 @@ def checkQ():
                     pass
                 
                 conn.timeout(None)
+            
         
 
 screen = gui.GUI() 
 t = threading.Thread(target=checkQ)
 t.start()
 screen.start()
-while keepGoing:
-    screen = gui.GUI() 
-    screen.start()
-    print("closed")
-    t.join()
-    t.start()
+print("closed")
+t.join()
+screen.destroy()
+print("finished")
+sock.close()
+
+print("window closed, ended")

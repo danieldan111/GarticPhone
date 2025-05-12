@@ -318,6 +318,7 @@ def handle_client(sock, addr):
     conn = protocol.TCP(sock, HEADER)
     gameStart = False #only in the host thread
     username, roomid = None, None
+    global rooms
     while not gameStart:
         try:
             request = conn.recv()
@@ -325,6 +326,7 @@ def handle_client(sock, addr):
             print(f"[SERVER] {addr} disconnected")
             print(f"[SERVER] checking for {username, roomid}")
             if not username or not roomid:
+                sock.close()
                 return
             if username == roomid: #host -> close room
                 print(f"[SERVER] host disconncted closed room {roomid}")
@@ -332,14 +334,35 @@ def handle_client(sock, addr):
             else:
                 print(f"[SERVER] {username} disconncted from {roomid}")
                 exit_room(conn, addr, (None, roomid, username))
+            sock.close()
             return
         request_code = request[:4]
         request_parms = request[4::].split("+")
         print(request)
         try:
+            check = rooms[roomid]
+        except KeyError:
+            roomid, username = None, None
+        try:
             if request_code == "GSRT":
                 break
                 #end of thread, reopend thread in game_started
+
+            elif request_code == "DISC":
+                print(f"[SERVER] {addr} disconnected")
+                print(f"[SERVER] checking for {username, roomid}")
+                if not username or not roomid:
+                    sock.close()
+                    return
+                if username == roomid: #host -> close room
+                    print(f"[SERVER] host disconncted closed room {roomid}")
+                    close_room(conn, addr, (None, roomid))
+                else:
+                    print(f"[SERVER] {username} disconncted from {roomid}")
+                    exit_room(conn, addr, (None, roomid, username))
+                sock.close()
+                return
+            
             msg = request_codes[request_code](conn, addr, request_parms)                
             if msg[0] == "CNFM":
                 if request_code == "CRTR":

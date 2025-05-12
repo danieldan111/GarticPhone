@@ -23,10 +23,11 @@ class GUI:
         self.active = True
 
     def on_close(self):
-        print("wiondow closed")
+        print("window closed")
+        self.requests_queue.append("DISC")
+        time.sleep(0.1)
         self.clear_window()
         self.__root.destroy()
-        self.destroy()
         self.active = False
         
 
@@ -121,7 +122,7 @@ class GUI:
 
         self.gamestarted = False
         self.gameAbort = False
-        while not self.gamestarted and not self.gameAbort:
+        while not self.gamestarted and not self.gameAbort and self.active:
             time.sleep(0.2)
             self.requests_queue.append("skip")
             self.__root.update()
