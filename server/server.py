@@ -10,7 +10,7 @@ import io
 
 main_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 ADDR = ("0.0.0.0", 6060)
-HEADER = 3
+HEADER = 5
 rooms = {}
 mutex_lock = Lock()
 min_player_amount = 2 #set to 3

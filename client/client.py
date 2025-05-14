@@ -10,7 +10,7 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_addr = ("127.0.0.1", 6060)
 sock.connect(server_addr)
 
-conn = protocol.TCP(sock, 3)
+conn = protocol.TCP(sock, 5)
 
 global keepGoing
 keepGoing = True

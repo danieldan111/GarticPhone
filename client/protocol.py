@@ -1,4 +1,10 @@
 import pickle
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
+from Crypto.Cipher import PKCS1_OAEP
+from Crypto.Util.Padding import pad, unpad
+import base64
 """ requests - types
 confirm - CNFM
 create room - CRTR+username
@@ -15,20 +21,39 @@ class TCP:
         self.format = "utf-8"
         self.__sock = sock
         self.__header = header
-    
+        self.secure()
 
-    def recv(self):
-        header = int(self.__sock.recv(self.__header).decode(self.format)) #msg len
-        request = self.__sock.recv(header).decode(self.format)
-        return request
-    
+    def secure(self):
+        keySwitch = KeyExchange(self.__sock)
+        self.__aes_key, self.__iv = keySwitch.switch_keys()
+        del keySwitch
+
 
     def send(self, msg):
-        header = str(len(msg))
-        header = "0" * (self.__header - len(header)) + header
-        request = header + msg
-        print(request)
-        self.__sock.send(request.encode(self.format))
+        # Encrypt the message using AES-CBC
+        cipher = AES.new(self.__aes_key, AES.MODE_CBC, self.__iv)
+        padded_msg = pad(msg.encode(self.format), AES.block_size)
+        encrypted_msg = cipher.encrypt(padded_msg)
+
+        # Create and send the header (length of the encrypted message)
+        header = str(len(encrypted_msg)).zfill(self.__header)
+        self.__sock.send(header.encode(self.format) + encrypted_msg)
+
+    def recv(self):
+        # Read the fixed-length header
+        header_bytes = self.__sock.recv(self.__header)
+        header = int(header_bytes.decode(self.format))
+
+        # Read the encrypted message based on the header
+        encrypted_msg = self.__sock.recv(header)
+
+        # Decrypt the message using AES-CBC
+        cipher = AES.new(self.__aes_key, AES.MODE_CBC, self.__iv)
+        padded_msg = cipher.decrypt(encrypted_msg)
+        msg = unpad(padded_msg, AES.block_size).decode(self.format)
+
+        return msg
+
 
 
     def confirm(self):
@@ -39,43 +64,106 @@ class TCP:
         self.__sock.settimeout(sec)
     
 
-    def sendall(self, bytes):
-        length = str(len(bytes))
-        self.send(length) #sending the length of image
-        self.__sock.sendall(bytes) #send all the image
-    
+    def sendall(self, data: bytes):
+        # Encrypt the data
+        cipher = AES.new(self.__aes_key, AES.MODE_CBC, self.__iv)
+        padded_data = pad(data, AES.block_size)
+        encrypted_data = cipher.encrypt(padded_data)
+
+        # Send the encrypted length
+        self.send(str(len(encrypted_data)))
+
+        # Send the encrypted binary data
+        self.__sock.sendall(encrypted_data)
 
     def recvall(self):
-        # Receive the first 4 bytes (image length)
-        length_bytes = self.recv()
+        # Receive and decrypt the encrypted length first
+        length_str = self.recv()
         try:
-            img_length = int(length_bytes)
-        except:
-            return length_bytes
-        # Receive the image data
+            encrypted_length = int(length_str)
+        except ValueError:
+            return length_str  # Could be error or handshake message
+
+        # Now receive the encrypted data
         received_data = b''
-        while len(received_data) < img_length:
-            packet = self.__sock.recv(4096)
-            if not packet:
+        while len(received_data) < encrypted_length:
+            chunk = self.__sock.recv(4096)
+            if not chunk:
                 break
-            received_data += packet
-        
-        return received_data
+            received_data += chunk
+
+        # Decrypt the full payload
+        cipher = AES.new(self.__aes_key, AES.MODE_CBC, self.__iv)
+        decrypted_padded = cipher.decrypt(received_data)
+        decrypted = unpad(decrypted_padded, AES.block_size)
+
+        return decrypted
     
 
     def send_obj(self, obj):
-        self.__sock.sendall(pickle.dumps(obj))
-    
+        # Serialize the object to bytes
+        data = pickle.dumps(obj)
+
+        # Encrypt the data
+        cipher = AES.new(self.__aes_key, AES.MODE_CBC, self.__iv)
+        padded_data = pad(data, AES.block_size)
+        encrypted_data = cipher.encrypt(padded_data)
+
+        # Send the length of encrypted data first (AES encrypted)
+        self.send(str(len(encrypted_data)))
+
+        # Send the encrypted serialized object
+        self.__sock.sendall(encrypted_data)
 
     def recv_obj(self):
-        data = b""
-        while True:
-            self.timeout(5)
-            try:
-                packet = self.__sock.recv(4096)
-            except TimeoutError:
-                self.timeout(None)
+        # First receive the encrypted length (as plaintext string)
+        encrypted_length_str = self.recv()
+        try:
+            encrypted_length = int(encrypted_length_str)
+        except ValueError:
+            return encrypted_length_str  # Possibly a control message or error
+
+        # Receive the full encrypted payload
+        encrypted_data = b""
+        while len(encrypted_data) < encrypted_length:
+            packet = self.__sock.recv(4096)
+            if not packet:
                 break
-            data += packet
-        print("End")
-        return data
+            encrypted_data += packet
+
+        # Decrypt the data
+        cipher = AES.new(self.__aes_key, AES.MODE_CBC, self.__iv)
+        decrypted_padded = cipher.decrypt(encrypted_data)
+        decrypted_data = unpad(decrypted_padded, AES.block_size)
+
+        # Deserialize the object
+        return decrypted_data
+    
+
+#rsa
+class KeyExchange:
+    def __init__(self, sock):
+        self.sock = sock
+
+
+    def switch_keys(self):
+        self.__private_key, self.__public_key = self.generate_rsa_keys()
+        self.sock.send(self.__public_key)
+        encrypted_aes_key = self.sock.recv(1024)
+        iv = self.sock.recv(16)
+        aes_key = self.decrypt_aes_key(encrypted_aes_key, self.__private_key)
+
+        return (aes_key, iv)    
+
+
+    def generate_rsa_keys(self):
+        key = RSA.generate(2048)
+        private_key = key.export_key()
+        public_key = key.publickey().export_key()
+        return private_key, public_key
+
+
+    def decrypt_aes_key(self, encrypted_aes_key, private_key):
+        private_rsa_key = RSA.import_key(private_key)
+        cipher_rsa = PKCS1_OAEP.new(private_rsa_key)
+        return cipher_rsa.decrypt(encrypted_aes_key)
